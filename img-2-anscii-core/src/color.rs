@@ -1,6 +1,4 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-
+use std::fmt;
 use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -27,7 +25,7 @@ pub enum Color {
 }
 
 impl Color {
-  pub fn fg_fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+  pub fn fg_fmt<W: fmt::Write>(&self, mut f: W) -> fmt::Result {
     write!(f, "\x1B[")?;
 
     match self {
@@ -55,7 +53,7 @@ impl Color {
     write!(f, "m")
   }
 
-  pub fn bg_fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+  pub fn bg_fmt<W: fmt::Write>(&self, mut f: W) -> fmt::Result {
     write!(f, "\x1B[")?;
 
     match *self {
@@ -138,8 +136,8 @@ impl FromStr for Color {
   }
 }
 
-impl Display for Color {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Color {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match *self {
       Color::Black => write!(f, "black"),
       Color::Red => write!(f, "red"),
@@ -164,33 +162,19 @@ impl Display for Color {
   }
 }
 
-struct ColorMapperToStringInner<'a, T>(&'a T, [u8; 4]);
-
-impl<'a, T: ColorMapper + Sized> Display for ColorMapperToStringInner<'a, T> {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    self.0.map_fmt(self.1, f)
+pub trait ColorMapper: Sized {
+  fn map_fmt<W: fmt::Write>(&self, color: [u8; 4], f: W) -> fmt::Result;
+  fn map(&self, color: [u8; 4]) -> String {
+    let mut buf = String::with_capacity(10);
+    self.map_fmt(color, &mut buf).unwrap();
+    buf
   }
-}
-
-pub trait ColorMapperToString {
-  fn map(&self, color: [u8; 4]) -> String
-  where
-    Self: ColorMapper + Sized,
-  {
-    format!("{}", ColorMapperToStringInner(self, color))
-  }
-}
-
-impl<T: ColorMapper + Sized> ColorMapperToString for T {}
-
-pub trait ColorMapper {
-  fn map_fmt(&self, color: [u8; 4], f: &mut Formatter) -> std::fmt::Result;
 }
 
 pub struct NoColorMapper;
 
 impl ColorMapper for NoColorMapper {
-  fn map_fmt(&self, _: [u8; 4], _: &mut Formatter) -> std::fmt::Result {
+  fn map_fmt<W: fmt::Write>(&self, _: [u8; 4], _: W) -> fmt::Result {
     Ok(())
   }
 }
@@ -198,7 +182,7 @@ impl ColorMapper for NoColorMapper {
 pub struct TrueColorMapper;
 
 impl ColorMapper for TrueColorMapper {
-  fn map_fmt(&self, [r, g, b, _]: [u8; 4], f: &mut Formatter) -> std::fmt::Result {
+  fn map_fmt<W: fmt::Write>(&self, [r, g, b, _]: [u8; 4], f: W) -> fmt::Result {
     Color::TrueColor(r, g, b).fg_fmt(f)
   }
 }
@@ -206,7 +190,7 @@ impl ColorMapper for TrueColorMapper {
 pub struct Color256Mapper;
 
 impl ColorMapper for Color256Mapper {
-  fn map_fmt(&self, [r, g, b, _]: [u8; 4], f: &mut Formatter) -> std::fmt::Result {
+  fn map_fmt<W: fmt::Write>(&self, [r, g, b, _]: [u8; 4], f: W) -> fmt::Result {
     Color::Color256((r / 3) + (g / 3) + (b / 3)).fg_fmt(f)
   }
 }
@@ -214,7 +198,7 @@ impl ColorMapper for Color256Mapper {
 pub struct Color16Mapper;
 
 impl ColorMapper for Color16Mapper {
-  fn map_fmt(&self, [r, g, b, _]: [u8; 4], f: &mut Formatter) -> std::fmt::Result {
+  fn map_fmt<W: fmt::Write>(&self, [r, g, b, _]: [u8; 4], f: W) -> fmt::Result {
     let color = match ((r / 3) + (g / 3) + (b / 3)) / 16 {
       0 => Color::Black,
       1 => Color::Red,
@@ -232,7 +216,7 @@ impl ColorMapper for Color16Mapper {
       13 => Color::BrightMagenta,
       14 => Color::BrightCyan,
       15 => Color::BrightWhite,
-      _ => return Err(std::fmt::Error::default()),
+      _ => return Err(fmt::Error::default()),
     };
 
     color.fg_fmt(f)

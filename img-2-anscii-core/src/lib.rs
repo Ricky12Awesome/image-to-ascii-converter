@@ -1,8 +1,7 @@
 pub mod color;
 pub mod image;
 
-use crate::color::ColorMapperToString;
-use crate::color::TrueColorMapper;
+use crate::color::{ColorMapper, TrueColorMapper};
 use crate::image::{load_from_bytes, Format};
 use ::image::GenericImageView;
 use thiserror::Error;
@@ -15,7 +14,7 @@ pub enum Error {
 }
 
 pub fn render(image: &[u8], format: Format) {
-  let image = load_from_bytes(image, Format::Png).unwrap();
+  let image = load_from_bytes(image, format).unwrap();
   let mapper = TrueColorMapper;
 
   let mut nl = 0;
